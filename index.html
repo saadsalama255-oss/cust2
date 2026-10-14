@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>سجل خصومات العملاء</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--bd:#e3e6ea;--pri:#0f766e;--prit:#fff;--dng:#c2410c;--soft:#e6f4f1;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111418;--card:#1a1f26;--tx:#e8eaed;--mut:#9aa3ae;--bd:#2c333c;--pri:#2dd4bf;--prit:#04201c;--dng:#fb923c;--soft:#12302c}}
+:root[data-theme="dark"]{--bg:#111418;--card:#1a1f26;--tx:#e8eaed;--mut:#9aa3ae;--bd:#2c333c;--pri:#2dd4bf;--prit:#04201c;--dng:#fb923c;--soft:#12302c}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px}
+main{max-width:760px;margin:0 auto;padding:14px}
+h1{font-size:19px;margin:4px 0 4px}
+.tabs{display:flex;gap:6px;margin:10px 0 12px}
+.tabs button{flex:1;padding:10px 2px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font:inherit;font-size:14px;cursor:pointer}
+.tabs button.on{background:var(--pri);color:var(--prit);border-color:var(--pri);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;min-width:0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.item{display:grid;gap:6px;padding:10px 0;border-top:1px dashed var(--bd)}
+button.p{background:var(--pri);color:var(--prit);border:0;border-radius:10px;padding:12px;font:inherit;font-weight:600;width:100%;cursor:pointer}
+button.s{background:var(--soft);color:var(--pri);border:0;border-radius:8px;padding:9px 12px;font:inherit;cursor:pointer}
+button.x{background:none;border:1px solid var(--bd);color:var(--dng);border-radius:8px;padding:9px;font:inherit;cursor:pointer}
+.sum{display:flex;justify-content:space-between;gap:8px;padding:4px 0}.sum.big{font-weight:700;font-size:16px;border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}
+.mut{color:var(--mut);font-size:13px}.dis{color:var(--dng)}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%}
+th,td{padding:8px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}th{color:var(--mut);font-weight:500;font-size:13px}
+.hide{display:none}#gate{position:fixed;inset:0;background:var(--bg);z-index:8;display:flex;align-items:center;justify-content:center;padding:16px}#gate.hide{display:none}.tag{background:var(--soft);color:var(--pri);border-radius:6px;padding:2px 8px;font-size:12px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;max-width:90%;z-index:9}
+#toast.on{opacity:1}
+</style></head>
+<body><main>
+<h1>سجل خصومات العملاء</h1>
+<div class="row"><span class="mut" id="who"></span><button class="s hide" id="logout" type="button">تسجيل خروج</button></div>
+<div class="tabs">
+<button data-v="add" class="on">عملية جديدة</button>
+<button data-v="ops">العمليات</button>
+<button data-v="rep">التقرير</button>
+<button data-v="team">👥 الفريق</button>
+</div>
+
+<section id="v-add">
+<div class="card">
+<label>اسم العميل</label><input id="cust" list="custs" placeholder="مثال: شركة النور">
+<datalist id="custs"></datalist>
+<label>رقم العملية</label><input id="opno" placeholder="مثال: 1001">
+<label>نوع الخصم</label><select id="dtype"><option value="">اختر نوع الخصم</option><option>Further S &amp; D</option><option>Further Discount</option><option>Slaughter S &amp; D</option><option>Slaughter Discount</option></select>
+</div>
+<div class="card">
+<div class="row"><b>بنود الخصم</b><button class="s" id="addItem">+ بند خصم</button></div>
+<div id="items"></div>
+<div class="sum big"><span>إجمالي خصومات العملية</span><span class="dis" id="tdisc">0.00</span></div>
+</div>
+<button class="p" id="save">حفظ العملية</button>
+</section>
+
+<section id="v-ops" class="hide">
+<div class="g2" style="margin-bottom:10px"><input id="q" placeholder="بحث بالعميل أو رقم العملية"><select id="fu"></select></div>
+<div id="oplist"></div>
+</section>
+
+<section id="v-rep" class="hide">
+<div class="card" id="kpis"></div>
+<button class="p" id="export" style="margin-bottom:10px">استخراج تقرير Excel المفصل</button>
+<div class="card"><b>حسب العميل</b><div class="scroll" id="t-cust"></div></div>
+<div class="card"><b>حسب نوع الخصم</b><div class="scroll" id="t-dtype"></div></div>
+<div class="card"><b>حسب نوع بند الخصم</b><div class="scroll" id="t-type"></div></div>
+<div class="card"><b>حسب المحاسب</b><div class="scroll" id="t-user"></div></div>
+<div class="card"><b>النسخ الاحتياطي</b>
+<p class="mut" id="lastbk"></p>
+<button class="p" id="backup" type="button">حفظ نسخة احتياطية</button>
+<div id="restorebox" style="margin-top:10px"><label>استرجاع من نسخة احتياطية (بيضيف العمليات الناقصة فقط ولا يمسح شيئًا)</label><input type="file" id="restore" accept=".json,application/json"></div></div>
+</section>
+
+<section id="v-team" class="hide">
+<div class="card"><b>إضافة محاسب</b>
+<p class="mut" style="line-height:1.7">من قائمة المشاركة الخاصة بالصفحة، ادعُ المحاسب بإيميله بصلاحية تسمح له بالكتابة (مساهم). بمجرد ما يفتح الصفحة بحسابه، كل عملية يدخلها بتتسجل باسمه تلقائيًا وتظهر لك لحظيًا. ومن يُدعى بصلاحية مشاهدة فقط يقدر يتابع من غير ما يضيف.</p></div>
+<div class="card hide" id="usersbox"><b>إدارة المستخدمين (اسم مستخدم وكلمة مرور)</b>
+<p class="mut" style="line-height:1.7">أنشئ لكل محاسب اسم مستخدم وكلمة مرور وسلّمهم له. المحاسب يفتح الصفحة (بعد ما تتيحها له من المشاركة) ويدخل بيهم، وكل عملية بتتسجل باسمه. لو كتبت اسم مستخدم موجود، بتتحدّث كلمة مروره.</p>
+<label>اسم المستخدم (حروف إنجليزية وأرقام)</label><input id="u_name" autocomplete="off" dir="ltr" placeholder="ahmed">
+<label>الاسم الظاهر</label><input id="u_disp" placeholder="أحمد محمد">
+<label>كلمة المرور (6 أحرف على الأقل)</label><input id="u_pw" type="text" autocomplete="off" dir="ltr">
+<button class="p" id="u_add" type="button" style="margin-top:10px">إضافة / تحديث المستخدم</button>
+<div id="ulist" style="margin-top:10px"></div></div>
+<div class="card"><b>متابعة المحاسبين</b><div class="scroll" id="t-team"></div></div>
+</section>
+</main>
+<div id="gate"><div class="card" style="width:100%;max-width:360px"><h1>تسجيل الدخول</h1><p class="mut">ادخل باسم المستخدم وكلمة المرور اللي أعطاها لك المدير.</p>
+<label>اسم المستخدم</label><input id="g_u" dir="ltr" autocomplete="username">
+<label>كلمة المرور</label><input id="g_p" type="password" dir="ltr" autocomplete="current-password">
+<p class="dis" id="g_msg"></p><button class="p" id="g_btn" type="button">دخول</button></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const TYPES=['مساحات','مسحوبات','مجلة','أدوات تسويقية','مصروفات إدارية وتكويد','حافز سنوي','تكويد أصناف'];
+const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const NOW=new Date(),CY=NOW.getFullYear();
+const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+let db=null,uapi=null,coll=null,me={id:null,name:'أنا'},isOwner=true,ops=[],names={};
+const LKEY='discounts_v2';
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2600)}
+const opTotal=o=>(o.items||[]).reduce((s,i)=>s+(+i.amount||0),0);
+const who=o=>names[o.uid]||(db?'—':me.name);
+const dateTxt=i=>i.m?MONTHS[i.m-1]+' '+i.y:String(i.y);
+const el=(tag,txt,cls)=>{const e=document.createElement(tag);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e};
+
+// ---------- data layer ----------
+async function init(){
+  try{if(window.claude){db=await claude.use('db');uapi=await claude.use('user');}}catch(e){}
+  if(db)isOwner=false;
+  if(uapi){try{me=await uapi.me();isOwner=await uapi.isOwner();isOwner=isOwner||!!(await uapi.canEdit());}catch(e){}}
+  if(db){
+    coll=db.collection('ops');
+    db.collection('users').onSnapshot(s=>{usersMap={};s.docs.forEach(d=>{usersMap[d.id]=d.data()});usersReady=true;checkSess();afterData()},()=>{usersReady=true;checkSess()});
+    coll.onSnapshot(s=>{ops=s.docs.map(d=>({...d.data(),id:d.id}));afterData()},()=>toast('تعذر تحديث البيانات'));
+  }else{
+    try{ops=JSON.parse(localStorage.getItem(LKEY)||'[]')}catch(e){ops=[]}
+    afterData();
+  }
+  $('who').textContent=db?('مسجل باسم: '+(me.name||'مستخدم')+(isOwner?' (مدير)':' (محاسب)')):'وضع محلي: البيانات على هذا الجهاز فقط، افتح الصفحة من حسابك للعمل المشترك';
+}
+async function afterData(){
+  const ids=[...new Set(ops.map(o=>o.uid).filter(x=>x&&!x.startsWith('u:')))];ops.forEach(o=>{if(o.uid&&o.uid.startsWith('u:')){const u=usersMap[o.uid.slice(2)];names[o.uid]=u?u.name:o.uid.slice(2)+' (محذوف)'}});
+  if(uapi&&ids.length){try{const p=await uapi.profiles(ids);ids.forEach(i=>names[i]=(p[i]&&p[i].name)||'محاسب')}catch(e){}}
+  render();
+}
+async function addOp(o){
+  if(db){await coll.add(o)}else{o.id=Date.now()+'-'+Math.random().toString(36).slice(2,7);ops.push(o);try{localStorage.setItem(LKEY,JSON.stringify(ops))}catch(e){}afterData()}
+}
+async function delOp(o){
+  if(db){await coll.doc(o.id).delete()}else{ops=ops.filter(z=>z.id!==o.id);try{localStorage.setItem(LKEY,JSON.stringify(ops))}catch(e){}afterData()}
+}
+const canDel=o=>isOwner||(actor()&&o.uid===actor())||!db;
+
+// ---------- tabs ----------
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['add','ops','rep','team'].forEach(v=>$('v-'+v).classList.toggle('hide',v!==b.dataset.v));
+});
+
+// ---------- form ----------
+const opts=(arr,ph)=>(ph?`<option value="">${ph}</option>`:'')+arr.map((a,i)=>`<option value="${ph?i+1:a}">${a}</option>`).join('');
+function addRow(){
+  const r=el('div',null,'item');
+  const years=[];for(let y=CY-4;y<=CY+1;y++)years.push(y);
+  r.innerHTML=`<input class="n" placeholder="الاسم">
+  <div class="g2"><select class="t">${opts(TYPES)}</select><input class="sku hide" placeholder="اسم الصنف المكود"></div>
+  <div class="g3"><input class="p" type="number" inputmode="decimal" min="0" step="any" placeholder="نسبة الخصم %">
+  <select class="m">${opts(MONTHS,'الشهر')}</select><select class="y">${years.map(y=>`<option>${y}</option>`).join('')}</select></div>
+  <div class="g2"><input class="a" type="number" inputmode="decimal" min="0" step="any" placeholder="الإجمالي"><button class="x" type="button">حذف البند</button></div>`;
+  r.querySelector('.m').value=String(NOW.getMonth()+1);
+  r.querySelector('.y').value=String(CY);
+  const t=r.querySelector('.t');
+  t.onchange=()=>{r.querySelector('.sku').classList.toggle('hide',t.value!=='تكويد أصناف');r.querySelector('.m').classList.toggle('hide',t.value==='حافز سنوي')};
+  r.querySelector('.x').onclick=()=>{r.remove();recalc()};
+  r.querySelector('.a').oninput=recalc;
+  $('items').appendChild(r);
+}
+function readItems(){
+  return [...$('items').children].map(r=>{
+    const type=r.querySelector('.t').value,annual=type==='حافز سنوي';
+    return{name:r.querySelector('.n').value.trim(),type,sku:type==='تكويد أصناف'?r.querySelector('.sku').value.trim():'',
+      pct:parseFloat(r.querySelector('.p').value)||0,m:annual?0:(+r.querySelector('.m').value||0),y:+r.querySelector('.y').value,
+      amount:parseFloat(r.querySelector('.a').value)||0};
+  });
+}
+function recalc(){$('tdisc').textContent=fmt(readItems().reduce((s,i)=>s+i.amount,0))}
+$('addItem').onclick=addRow;
+function reset(){$('cust').value='';$('opno').value='';$('dtype').value='';$('items').innerHTML='';addRow();recalc()}
+$('save').onclick=async()=>{
+  const cust=$('cust').value.trim(),no=$('opno').value.trim(),dtype=$('dtype').value;
+  const items=readItems().filter(i=>i.amount>0);
+  if(!cust)return toast('اكتب اسم العميل');
+  if(!no)return toast('اكتب رقم العملية');
+  if(!dtype)return toast('اختر نوع الخصم');
+  if(ops.some(o=>o.no===no))return toast('رقم العملية مستخدم من قبل');
+  if(!items.length)return toast('أضف بند خصم واحد على الأقل بإجمالي أكبر من صفر');
+  for(const i of items){
+    if(i.type==='تكويد أصناف'&&!i.sku)return toast('اكتب اسم الصنف المكود');
+    if(i.type!=='حافز سنوي'&&!i.m)return toast('اختر شهر الخصم');
+    if(!i.name)i.name=i.type;
+  }
+  try{await addOp({cust,no,dtype,uid:actor(),at:Date.now(),items});reset();toast('تم حفظ العملية')}
+  catch(e){toast('تعذر الحفظ، تأكد أن صلاحيتك تسمح بالكتابة')}
+};
+
+// ---------- views ----------
+function render(){
+  $('custs').innerHTML='';[...new Set(ops.map(o=>o.cust))].forEach(c=>{const op=el('option');op.value=c;$('custs').append(op)});
+  const fu=$('fu'),cur=fu.value;fu.innerHTML='<option value="">كل المحاسبين</option>';
+  [...new Set(ops.map(o=>o.uid||''))].forEach(u=>{const op=el('option',names[u]||(u?'—':me.name));op.value=u;fu.append(op)});
+  fu.value=cur;
+  renderOps();renderRep();renderTeam();
+  $('restorebox').classList.toggle('hide',!isOwner);
+  $('usersbox').classList.toggle('hide',!(isOwner&&db));renderUsers();
+}
+function renderOps(){
+  const q=$('q').value.trim().toLowerCase(),fu=$('fu').value,box=$('oplist');box.innerHTML='';
+  const list=ops.filter(o=>(!q||o.cust.toLowerCase().includes(q)||o.no.toLowerCase().includes(q))&&(!fu||(o.uid||'')===fu)).sort((a,b)=>b.at-a.at);
+  if(!list.length){box.append(el('p','لا توجد عمليات.','mut'));return}
+  list.forEach(o=>{
+    const c=el('div',null,'card'),h=el('div',null,'row'),l=el('div');
+    l.append(el('b',o.cust),el('div','عملية '+o.no+(o.dtype?' · '+o.dtype:'')+' · '+who(o)+' · '+new Date(o.at).toISOString().slice(0,10),'mut'));
+    h.append(l);
+    if(canDel(o)){const x=el('button','حذف','x');armBtn(x,'حذف','تأكيد الحذف؟',async()=>{try{await delOp(o)}catch(e){toast('تعذر الحذف')}});h.append(x)}
+    c.append(h);
+    o.items.forEach(i=>{
+      const r=el('div',null,'sum'),a=el('div');
+      a.append(el('div',i.name),el('div',i.type+(i.sku?' ← '+i.sku:'')+' · '+dateTxt(i)+(i.pct?' · '+i.pct+'%':''),'mut'));
+      r.append(a,el('span','- '+fmt(i.amount),'dis'));c.append(r);
+    });
+    const t=el('div',null,'sum big');t.append(el('span','إجمالي الخصومات'),el('span',fmt(opTotal(o))));
+    c.append(t);box.append(c);
+  });
+}
+$('q').oninput=renderOps;$('fu').onchange=renderOps;
+const flat=()=>ops.flatMap(o=>o.items.map(i=>({o,i})));
+function groups(keyFn){
+  const m={};
+  flat().forEach(({o,i})=>{const k=keyFn(o,i),s=m[k]||(m[k]={k,ops:new Set(),n:0,total:0,last:0});s.ops.add(o.id);s.n++;s.total+=+i.amount||0;s.last=Math.max(s.last,o.at||0)});
+  return Object.values(m).sort((a,b)=>b.total-a.total);
+}
+function tbl(box,head,rows){
+  box.innerHTML='';const t=el('table'),hr=el('tr');
+  head.forEach(h=>hr.append(el('th',h)));t.append(hr);
+  rows.forEach(r=>{const tr=el('tr');r.forEach(v=>tr.append(el('td',v)));t.append(tr)});
+  if(!rows.length){box.append(el('p','لا توجد بيانات.','mut'));return}
+  box.append(t);
+}
+function renderRep(){
+  const D=ops.reduce((s,o)=>s+opTotal(o),0);
+  const k=$('kpis');k.innerHTML='';
+  [['عدد العمليات',ops.length],['عدد بنود الخصم',flat().length],['إجمالي الخصومات',fmt(D)]].forEach(([a,b],n)=>{const r=el('div',null,'sum'+(n==2?' big':''));r.append(el('span',a),el('b',b));k.append(r)});
+  tbl($('t-cust'),['العميل','العمليات','الإجمالي'],groups(o=>o.cust).map(s=>[s.k,s.ops.size,fmt(s.total)]));
+  tbl($('t-type'),['النوع','البنود','الإجمالي'],groups((o,i)=>i.type).map(s=>[s.k,s.n,fmt(s.total)]));
+  tbl($('t-dtype'),['نوع الخصم','العمليات','الإجمالي'],groups(o=>o.dtype||'غير محدد').map(s=>[s.k,s.ops.size,fmt(s.total)]));
+  tbl($('t-user'),['المحاسب','العمليات','الإجمالي'],groups(o=>o.uid||'').map(s=>[names[s.k]||(s.k?'—':me.name),s.ops.size,fmt(s.total)]));
+}
+function renderTeam(){
+  tbl($('t-team'),['المحاسب','العمليات','الإجمالي','آخر إدخال'],groups(o=>o.uid||'').map(s=>[(names[s.k]||(s.k?'—':me.name))+(s.k&&s.k===actor()?' (أنت)':''),s.ops.size,fmt(s.total),s.last?new Date(s.last).toISOString().slice(0,10):'']));
+}
+
+// ---------- export ----------
+$('export').onclick=async()=>{
+  if(!ops.length)return toast('لا توجد عمليات للتصدير');
+  const rows=[['العميل','رقم العملية','نوع الخصم (العملية)','المحاسب','تاريخ الإدخال','الاسم','نوع بند الخصم','الصنف المكود','نسبة الخصم %','شهر الخصم','سنة الخصم','الإجمالي']];
+  ops.slice().sort((a,b)=>a.at-b.at).forEach(o=>o.items.forEach(i=>rows.push([o.cust,o.no,o.dtype||'',who(o),new Date(o.at).toISOString().slice(0,10),i.name,i.type,i.sku||'',i.pct||'',i.m?MONTHS[i.m-1]:'',i.y,+(+i.amount).toFixed(2)])));
+  const grand=ops.reduce((s,o)=>s+opTotal(o),0);
+  rows.push(['الإجمالي','','','','','','','','','','',+grand.toFixed(2)]);
+  const sheet=(head,keyFn,label)=>{const g=groups(keyFn);return[head,...g.map(s=>[label(s),s.ops.size,s.n,+s.total.toFixed(2)]),['الإجمالي',ops.length,flat().length,+grand.toFixed(2)]]};
+  const H=n=>[n,'عدد العمليات','عدد البنود','الإجمالي'];
+  const sheets=[['تفاصيل الخصومات',rows,[22,12,22,18,13,22,22,20,12,12,10,14]],
+    ['ملخص العملاء',sheet(H('العميل'),o=>o.cust,s=>s.k),[26,14,12,16]],
+    ['ملخص أنواع الخصم',sheet(H('نوع الخصم (العملية)'),o=>o.dtype||'غير محدد',s=>s.k),[26,14,12,16]],
+    ['ملخص بنود الخصم',sheet(H('نوع بند الخصم'),(o,i)=>i.type,s=>s.k),[26,14,12,16]],
+    ['ملخص المحاسبين',sheet(H('المحاسب'),o=>o.uid||'',s=>names[s.k]||(s.k?'—':me.name)),[26,14,12,16]]];
+  const stamp=new Date().toISOString().slice(0,10);let data,name;
+  if(window.XLSX){
+    const wb=XLSX.utils.book_new();
+    sheets.forEach(([n,a,w])=>{const ws=XLSX.utils.aoa_to_sheet(a);ws['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,n)});
+    wb.Workbook={Views:[{RTL:true}]};
+    data=new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]);name='تقرير-الخصومات-'+stamp+'.xlsx';
+  }else{
+    data='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');name='تقرير-الخصومات-'+stamp+'.csv';
+  }
+  try{
+    const dl=window.claude&&await claude.use('downloads');
+    if(!dl)return toast('التنزيل غير متاح في هذا العرض');
+    await dl.save({filename:name,data});
+  }catch(e){if(e&&e.code!=='declined')toast('تعذر حفظ الملف')}
+};
+
+// ---------- backup ----------
+const BK='discounts_lastbk';
+function showBk(){let t='';try{t=localStorage.getItem(BK)||''}catch(e){}$('lastbk').textContent=t?'آخر نسخة احتياطية من هذا الجهاز: '+t:'لم تُحفظ نسخة احتياطية من هذا الجهاز بعد.'}
+$('backup').onclick=async()=>{
+  if(!ops.length)return toast('لا توجد بيانات لحفظها');
+  const clean=ops.map(({cust,no,dtype,uid,at,items})=>({cust,no,dtype:dtype||'',uid:uid||'',at,items}));
+  const data=JSON.stringify({app:'discounts',v:2,at:new Date().toISOString(),ops:clean},null,1);
+  try{
+    const dl=window.claude&&await claude.use('downloads');
+    if(!dl)return toast('التنزيل غير متاح في هذا العرض');
+    await dl.save({filename:'نسخة-احتياطية-الخصومات-'+new Date().toISOString().slice(0,10)+'.json',data});
+    try{localStorage.setItem(BK,new Date().toLocaleString('en-GB'))}catch(e){}
+    showBk();
+  }catch(e){if(e&&e.code!=='declined')toast('تعذر حفظ النسخة')}
+};
+$('restore').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(!isOwner)return toast('الاسترجاع متاح للمدير فقط');
+  let j;try{j=JSON.parse(await f.text())}catch(x){return toast('الملف غير صالح')}
+  if(!j||j.app!=='discounts'||!Array.isArray(j.ops))return toast('ده مش ملف نسخة احتياطية للتطبيق');
+  const have=new Set(ops.map(o=>o.no));let add=0,skip=0;
+  for(const o of j.ops){
+    if(!o||typeof o.cust!=='string'||o.no==null||!Array.isArray(o.items)){skip++;continue}
+    const no=String(o.no);if(have.has(no)){skip++;continue}
+    const items=o.items.filter(i=>i&&+i.amount>0).map(i=>({name:String(i.name||''),type:String(i.type||''),sku:String(i.sku||''),pct:+i.pct||0,m:+i.m||0,y:+i.y||CY,amount:+i.amount}));
+    if(!items.length){skip++;continue}
+    try{await addOp({cust:o.cust,no,dtype:String(o.dtype||''),uid:String(o.uid||''),at:+o.at||Date.now(),items});have.add(no);add++}catch(x){skip++}
+  }
+  toast('تم استرجاع '+add+' عملية'+(skip?' وتخطي '+skip:''));
+};
+showBk();
+// ---------- users & login ----------
+let sess=null,usersMap={},usersReady=false;
+const SK='discounts_sess';
+function actor(){return sess?'u:'+sess.u:(me.id||'')}
+function armBtn(b,label,arm,fn){b.onclick=()=>{if(b.dataset.a){clearTimeout(b._t);delete b.dataset.a;b.textContent=label;fn()}else{b.dataset.a='1';b.textContent=arm;b._t=setTimeout(()=>{delete b.dataset.a;b.textContent=label},4000)}}}
+async function hashPw(pw,saltB64){
+  const salt=Uint8Array.from(atob(saltB64),c=>c.charCodeAt(0));
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:150000},key,256);
+  return btoa(String.fromCharCode(...new Uint8Array(bits)));
+}
+const newSalt=()=>btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+const hasCrypto=()=>!!(window.crypto&&crypto.subtle);
+function setWho(){
+  if(!db)return;
+  const lo=$('logout');
+  if(sess&&usersMap[sess.u]){$('who').textContent='مسجل باسم: '+usersMap[sess.u].name+' (محاسب)';lo.classList.remove('hide')}
+  else{$('who').textContent='مسجل باسم: '+(me.name||'مستخدم')+(isOwner?' (مدير)':'');lo.classList.add('hide')}
+}
+function checkSess(){
+  const g=$('gate');
+  if(!db||isOwner){g.classList.add('hide');sess=null;setWho();return}
+  if(!usersReady)return;
+  if(!sess){try{sess=JSON.parse(localStorage.getItem(SK)||'null')}catch(e){sess=null}}
+  const u=sess&&usersMap[sess.u];
+  if(u&&u.hash===sess.h){g.classList.add('hide')}
+  else{sess=null;try{localStorage.removeItem(SK)}catch(e){}g.classList.remove('hide')}
+  setWho();
+}
+$('g_btn').onclick=async()=>{
+  const msg=$('g_msg'),u=$('g_u').value.trim().toLowerCase(),p=$('g_p').value;
+  if(!usersReady)return msg.textContent='جاري التحميل، حاول بعد لحظات';
+  if(!hasCrypto())return msg.textContent='المتصفح لا يدعم تشفير كلمة المرور';
+  const rec=usersMap[u];
+  if(!rec||!p){msg.textContent='بيانات الدخول غير صحيحة';return}
+  let h;try{h=await hashPw(p,rec.salt)}catch(e){msg.textContent='بيانات الدخول غير صحيحة';return}
+  if(h!==rec.hash){msg.textContent='بيانات الدخول غير صحيحة';return}
+  sess={u,h};try{localStorage.setItem(SK,JSON.stringify(sess))}catch(e){}
+  $('g_p').value='';msg.textContent='';checkSess();render();
+};
+$('g_p').onkeydown=e=>{if(e.key==='Enter')$('g_btn').click()};
+$('logout').onclick=()=>{sess=null;try{localStorage.removeItem(SK)}catch(e){}checkSess()};
+$('u_add').onclick=async()=>{
+  if(!isOwner||!db)return;
+  const u=$('u_name').value.trim().toLowerCase(),n=$('u_disp').value.trim(),p=$('u_pw').value;
+  if(!/^[a-z0-9_.-]{3,30}$/.test(u))return toast('اسم المستخدم: حروف إنجليزية وأرقام فقط (من 3 إلى 30)');
+  if(!n)return toast('اكتب الاسم الظاهر');
+  if(p.length<6)return toast('كلمة المرور 6 أحرف على الأقل');
+  if(!hasCrypto())return toast('المتصفح لا يدعم تشفير كلمة المرور');
+  const ex=!!usersMap[u];
+  try{
+    const salt=newSalt(),hash=await hashPw(p,salt);
+    await db.collection('users').doc(u).set({name:n,salt,hash,at:Date.now()});
+    $('u_name').value='';$('u_disp').value='';$('u_pw').value='';
+    toast(ex?'تم تحديث المستخدم':'تمت إضافة المستخدم');
+  }catch(e){toast('تعذر الحفظ')}
+};
+function renderUsers(){
+  const box=$('ulist');box.innerHTML='';
+  Object.entries(usersMap).forEach(([id,u])=>{
+    const r=el('div',null,'sum'),a=el('div'),b=el('div');
+    a.append(el('b',u.name),el('div',id,'mut'));
+    const e=el('button','تعديل','s');e.onclick=()=>{$('u_name').value=id;$('u_disp').value=u.name;$('u_pw').focus()};
+    const d=el('button','حذف','x');
+    armBtn(d,'حذف','تأكيد الحذف؟',async()=>{try{await db.collection('users').doc(id).delete();toast('تم حذف المستخدم')}catch(x){toast('تعذر الحذف')}});
+    b.style.display='flex';b.style.gap='6px';b.append(e,d);r.append(a,b);box.append(r);
+  });
+  if(!Object.keys(usersMap).length)box.append(el('p','لا يوجد مستخدمون بعد.','mut'));
+}
+reset();init().then(()=>{if(!db){usersReady=true;checkSess()}});
+</script>
+</body></html>
